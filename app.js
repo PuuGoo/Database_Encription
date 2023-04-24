@@ -6,8 +6,8 @@ import express from "express"
 import bodyParser from "body-parser"
 import mongoose from "mongoose"
 import ejs from "ejs"
-import encrypt from "mongoose-encryption"
-
+import bcrypt from "bcrypt"
+const saltRounds = 10;
 main().catch(function(err){
     console.log(err);
 });
@@ -21,10 +21,6 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String
 });
-
-
-
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
 
 const User = mongoose.model("User", userSchema);
 
@@ -49,9 +45,15 @@ app.route("/login")
     User.findOne({email: req.body.username})
     .then(function(foundUser){
         if(foundUser){
-            if(password === foundUser.password){
-                res.render("secrets");
-            }
+            bcrypt.compare(password, foundUser.password)
+            .then(function(result){
+                if(result === true){
+                    res.render("secrets");
+                }
+            })
+            .catch(function(err){
+                console.log(err);
+            });
         }
     })
     .catch(function(err){
@@ -64,19 +66,24 @@ app.route("/register")
     res.render("register");
 })
 .post(function(req,res){
-
-    const user = new User({
-        email: req.body.username,
-        password: req.body.password
-    });
-    user.save()
-    .then(function(){
-        console.log("Successfully saved a user data.");
+    bcrypt.hash(req.body.password, saltRounds)
+    .then(function(hash){
+        const user = new User({
+            email: req.body.username,
+            password: hash
+        });
+        user.save()
+        .then(function(){
+            console.log("Successfully saved a user data.");
+        })
+        .catch(function(err){
+            console.log(err);
+        });
+        res.render("secrets");
     })
     .catch(function(err){
         console.log(err);
     });
-    res.render("secrets");
 });
 
 app.listen(3000, function(){
